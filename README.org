@@ -1,0 +1,108 @@
+#+TITLE: corg.el
+
+*corg.el* 🍾 is an Emacs package that provides completion-at-point for
+Org-mode source block and dynamic block headers. /corg/ auto-completes
+programming language names, their parameters, and possible parameter
+values for source blocks. For dynamic blocks, it completes block
+names, their parameters, and possible parameter values.
+
+#+html: <img src="https://github.com/user-attachments/assets/25086366-3570-4638-a3f5-98ae8f9b1819">
+
+* Installation
+
+1. Install [[https://github.com/magnars/s.el][s.el]] and [[https://github.com/magnars/dash.el][dash.el]] dependencies.
+1. Download corg.el to your Emacs load path.
+2. Add the following to your Emacs configuration file:
+
+#+begin_src emacs-lisp
+(require 'corg)
+#+end_src
+
+Or you can use ~use-package~ with one of [[https://github.com/radian-software/straight.el][straight]], [[https://github.com/slotThe/vc-use-package][vc]], [[https://github.com/quelpa/quelpa][quelpa]], [[https://github.com/progfolio/elpaca][elpaca]] etc.
+
+#+begin_src emacs-lisp
+;; Using straight:
+(use-package corg
+  :straight (:host github :repo "isamert/corg.el"))
+
+;; Using vc:
+(use-package corg
+  :vc (:url "https://gitlab.com/isamert/corg.el"))
+
+;; Using quelpa:
+(use-package corg
+  :quelpa (corg :fetcher github :repo "isamert/corg.el"))
+
+;; Using elpaca:
+(use-package corg
+  :ensure (:host github :repo "isamert/corg.el"))
+#+end_src
+
+* How it works?
+
+- Parses ~org-babel-common-header-args-w-values~ variable (/generic/
+  completions) and respective ~org-babel-header-args:<LANG>~ (/native/
+  completions) variables for available parameters and values.
+- Extracts potential parameters and their values by parsing the source
+  code (/source/ completions) and the documentation (/doc/ completions) of
+  executor functions for each ~org-babel-execute:<LANG>~ or
+  ~org-dblock-write:<DBLOCK-NAME>~ functions.
+- It annotates the completions with one of ~doc~, ~source~, ~native~, ~common~
+  to let you know how the completion is extracted. See the
+  documentation of ~corg~ function to learn more about this.
+
+* Usage
+
+To enable /corg/ in current Org buffer, do ~M-x corg-setup~ or to
+automatically enable it on Org mode buffers by adding a hook (it has
+no noticeable performance penalty, so I /guess/ it's safe to do this):
+
+#+begin_src emacs-lisp
+(add-hook 'org-mode-hook #'corg-setup)
+#+end_src
+
+Simply place the cursor on the header line of an Org mode source block
+(starting with ~#+begin_src~) or dynamic block (starting with ~#+begin:~)
+and invoke ~completion-at-point~ (~M-TAB~ or ~C-M-i~) and let /corg/ work for
+you.
+
+In the screenshot above I use [[https://github.com/minad/corfu][corfu]] and [[https://github.com/minad/corfu/blob/main/extensions/corfu-popupinfo.el][corfu-popupinfo]] as my
+completion UI. /corg/ can also work with [[http://company-mode.github.io/][company]] through it's /capf/
+backend.
+
+For example, assuming the ~|~ is the cursor:
+
+#+begin_src org
+,#+begin_src sql :d|
+#+end_src
+
+When invoke you ~completion-at-point~, /corg/ will suggest available
+parameters and values for the ~sql~ source block. In this case, it will
+list the following:
+
+#+begin_example
+:dir         sql parameter (common)
+:dbhost      sql parameter (native)
+:dbport      sql parameter (native)
+:dbuser      sql parameter (native)
+:database    sql parameter (native)
+:dbinstance  sql parameter (native)
+:dbpassword  sql parameter (native)
+#+end_example
+
+* Planned features
+
+- [ ] Provide a way to supply user-defined completion items for
+  parameters and their values (probably through an alist).
+  - This should include their documentation and their possible
+    values.
+  - Also provide a way to supply manual documentation and
+    annotation with the manual completion.
+    Documentation/annotation can be in the form of a function too.
+
+* Similar work
+
+There is also [[https://github.com/xenodium/org-block-capf][org-block-capf]] but it only completes language names and
+it mostly works as a snippet manager for Org blocks rather than a
+completion tool. I guess /corg/ and /org-block-capf/ can be used together
+to complement each other but I haven't tried it yet.
