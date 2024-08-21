@@ -100,7 +100,7 @@ Generally speaking, returned completions are annotated with one of these:
            (s-match "^#\\+begin\\(:\\|_[a-zA-Z0-9]+\\) *\\([A-Za-z0-9_-]+\\)?* *\\(.*\\)?$" line))
           (block-type (pcase (s-chop-prefix "_" type)
                         (":" 'dblock)
-                        ("src" 'src))))
+                        ((or "src" "SRC") 'src))))
     (cond
      ((or (not line) (s-blank? type)) '())
      ((or (s-blank? what) (looking-back (format " %s" what) (line-beginning-position)))
