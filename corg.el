@@ -45,22 +45,23 @@
 See `corg' for detailed documentation."
   (-let ((bounds (bounds-of-thing-at-point 'filename))
          (candidates (corg)))
-    (list
-     (or (car bounds) (point))
-     (or (cdr bounds) (point))
-     (mapcar #'car candidates)
-     :annotation-function
-     (lambda (candidate)
-       (concat " " (plist-get (alist-get candidate candidates nil nil #'equal) :ann)))
-     :company-doc-buffer
-     (lambda (candidate)
-       (with-current-buffer (get-buffer-create " *corg*")
-         (erase-buffer)
-         (let ((doc (plist-get (alist-get candidate candidates nil nil #'equal) :doc)))
-           (insert (if (functionp doc)
-                       (funcall doc)
-                     doc)))
-         (current-buffer))))))
+    (if candidates
+      (list
+       (or (car bounds) (point))
+       (or (cdr bounds) (point))
+       (mapcar #'car candidates)
+       :annotation-function
+       (lambda (candidate)
+	 (concat " " (plist-get (alist-get candidate candidates nil nil #'equal) :ann)))
+       :company-doc-buffer
+       (lambda (candidate)
+	 (with-current-buffer (get-buffer-create " *corg*")
+           (erase-buffer)
+           (let ((doc (plist-get (alist-get candidate candidates nil nil #'equal) :doc)))
+             (insert (if (functionp doc)
+			 (funcall doc)
+                       doc)))
+           (current-buffer)))))))
 
 (defun corg ()
   "Return a list of possible completion candidates and their types.
