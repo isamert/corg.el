@@ -45,7 +45,7 @@
 See `corg' for detailed documentation."
   (-let ((bounds (bounds-of-thing-at-point 'filename))
          (candidates (corg)))
-    (if candidates
+    (when candidates
       (list
        (or (car bounds) (point))
        (or (cdr bounds) (point))
