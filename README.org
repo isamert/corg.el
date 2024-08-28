@@ -35,7 +35,7 @@ Or you can use ~use-package~ with one of [[https://github.com/radian-software/st
 
 ;; Using elpaca:
 (use-package corg
-  :ensure (:host github :repo "isamert/corg.el"))
+  :elpaca (:host github :repo "isamert/corg.el"))
 #+end_src
 
 * How it works?
