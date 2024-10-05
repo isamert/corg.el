@@ -104,7 +104,9 @@ Generally speaking, returned completions are annotated with one of these:
                         ((or "src" "SRC") 'src))))
     (cond
      ((or (not line) (s-blank? type)) '())
-     ((or (s-blank? what) (looking-back (format " %s" what) (line-beginning-position)))
+     ((and block-type
+           (or (s-blank? what)
+               (looking-back (format " %s" what) (line-beginning-position))))
       (corg--block-types block-type))
      ((looking-back ":[a-zA-Z0-9_-]+ +\"?" (line-beginning-position))
       (-let* (((start end) (match-data))
