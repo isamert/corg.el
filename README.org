@@ -27,7 +27,7 @@ Or you can use ~use-package~ with one of [[https://github.com/radian-software/st
 
 ;; Using vc:
 (use-package corg
-  :vc (:url "https://gitlab.com/isamert/corg.el"))
+  :vc (:url "https://github.com/isamert/corg.el"))
 
 ;; Using quelpa:
 (use-package corg
