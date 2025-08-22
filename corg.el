@@ -98,7 +98,7 @@ Generally speaking, returned completions are annotated with one of these:
           a definitely implemented, trusted completion."
   (-let* ((line (thing-at-point 'line t))
           ((_ type what _params)
-           (s-match "^#\\+begin\\(:\\|_[a-zA-Z0-9]+\\) *\\([A-Za-z0-9_-]+\\)?* *\\(.*\\)?$" line))
+           (s-match "^\s*#\\+begin\\(:\\|_[a-zA-Z0-9]+\\) *\\([A-Za-z0-9_-]+\\)?* *\\(.*\\)?$" line))
           (block-type (pcase (s-chop-prefix "_" type)
                         (":" 'dblock)
                         ((or "src" "SRC") 'src)
