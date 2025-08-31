@@ -321,7 +321,7 @@ These completions are annotated as \"native\"."
                                  (vc-suppress-confirm t))
                              (ignore-error error
                                (delay-mode-hooks
-                                 (find-definition-noselect function nil)))))
+                                 (find-function-noselect function nil)))))
       (save-current-buffer
         (set-buffer buffer)
         (buffer-substring-no-properties
