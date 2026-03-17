@@ -97,31 +97,31 @@ Generally speaking, returned completions are annotated with one of these:
           specifically defined for the block which means this is
           a definitely implemented, trusted completion."
   (-let* ((line (thing-at-point 'line t))
-          ((_ type what _params)
-           (s-match "^\s*#\\+begin\\(:\\|_[a-zA-Z0-9]+\\) *\\([A-Za-z0-9_-]+\\)?* *\\(.*\\)?$" line))
+          ((_ head type what _params)
+           (s-match
+            "^\s*#\\+\\(begin\\|call\\)\\(:\\|_[a-zA-Z0-9]+\\) *\\([A-Za-z0-9_-]+\\)?* *\\(.*\\)?$"
+            line))
           (block-type (pcase (s-chop-prefix "_" type)
-                        (":" 'dblock)
+                        (":" (pcase head
+                               ("begin" 'dblock)
+                               ("call" 'call)))
                         ((or "src" "SRC") 'src)
-                        ;; begin_{export,example,center,...} etc.
-                        ;; We have no completion for them, for now.
-                        (_ 'special))))
+                        (_ 'special)))
+          (line-begin (line-beginning-position))
+          (looking-back-what (lambda (it) (looking-back (format it (or what "")) line-begin))) )
     (cond
-     ((or (not line) (s-blank? type)) '())
-     ((eq block-type 'special)
-      '())
-     ((and block-type
-           (or (s-blank? what)
-               (looking-back (format " %s" what) (line-beginning-position))))
-      (corg--block-types block-type))
-     ((looking-back ":[a-zA-Z0-9_-]+ +\"?" (line-beginning-position))
-      (-let* (((start end) (match-data))
-              (parameter (s-trim
-                          (s-chop-suffix
-                           "\""
-                           (s-trim (buffer-substring-no-properties start end))))))
-        (corg--parameter-types what block-type parameter)))
-     ((not (s-blank? what))
-      (corg--parameters what block-type))
+     ((or (not line) (s-blank? type) (eq block-type 'special)) '())
+     ((eq block-type 'call)
+      (cond
+       ((funcall looking-back-what " %s") (corg--src-block-names))
+       ((or (s-blank? what)
+            (looking-back (format " %s(\\([a-zA-Z0-9]*\\|[^)]*,\s*[a-zA-Z0-9]*\\)" what) line-begin))
+        (corg--src-block-args what))
+       (t '())))
+     ((funcall looking-back-what " %s") (corg--block-types block-type))
+     ((looking-back ":\\([a-zA-Z0-9_-]+\\) +\"?" line-begin)
+      (corg--parameter-types what block-type (match-string 1)))
+     ((not (s-blank? what)) (corg--parameters what block-type))
      (t '()))))
 
 ;;;###autoload
@@ -313,6 +313,29 @@ These completions are annotated as \"native\"."
      :type (cdr it)))
    parameter))
 
+;;;; Call completion
+
+(defun corg--src-block-names ()
+  (--map
+   (cons it (list :ann "named block"
+                  :doc (corg--format-src-block-info (corg--get-src-block-info it))))
+   (append
+    (when (bound-and-true-p org-babel-library-of-babel)
+      (--map (corg--stringify-type (car it)) org-babel-library-of-babel))
+    (org-babel-src-block-names))))
+
+(defun corg--src-block-args (src-block-name)
+  (let ((args (->>
+               (corg--get-src-block-info src-block-name)
+               (nth 2)
+               (--filter (and (consp it) (eq (car it) :var)))
+               (-map #'cdr))))
+    (--map
+     (-let (((arg val) (s-split "=" it)))
+       (cons arg (list :ann (format "%s arg" src-block-name)
+                       :doc (format "default: %s" val))))
+     args)))
+
 ;;;; Utils
 
 (defun corg--get-function-source (function)
@@ -404,6 +427,42 @@ These completions are annotated as \"native\"."
        "\n"
        (ignore-errors
          (documentation (intern fn-name)))))))
+
+(defun corg--get-src-block-info (block-name)
+  (or (and (bound-and-true-p org-babel-library-of-babel)
+           (alist-get (intern block-name) org-babel-library-of-babel))
+      (org-with-point-at 1
+        (when-let ((pt (org-babel-find-named-block block-name)))
+          (goto-char pt)
+          (org-babel-get-src-block-info t)))))
+
+(defun corg--format-src-block-info (info)
+  "Format org-babel source block INFO in a readable way."
+  (-let* (((lang body params _ name) info)
+          (args (->> params
+                   (--filter (and (consp it) (eq (car it) :var)))
+                   (--map (cdr it))
+                   (s-join ", ")))
+          (params-str (->> params
+                         (--map (format "%s %s" (car it) (cdr it)))
+                         (s-join " "))))
+    (concat
+     (propertize (or name "unnamed") 'face 'font-lock-function-name-face)
+     (propertize (format "(%s)" args) 'face 'font-lock-variable-name-face)
+     "\n"
+     (propertize "---" 'face 'font-lock-comment-face)
+     "\n"
+     (propertize "#+begin_src " 'face 'font-lock-keyword-face)
+     (propertize lang 'face 'font-lock-type-face)
+     " "
+     (propertize params-str 'face 'font-lock-comment-face)
+     "\n"
+     (with-temp-buffer
+       (insert body)
+       (indent-rigidly (point-min) (point-max) 2)
+       (buffer-string))
+     "\n"
+     (propertize "#+end_src" 'face 'font-lock-keyword-face))))
 
 ;;;; Footer
 
