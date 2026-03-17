@@ -99,7 +99,7 @@ Generally speaking, returned completions are annotated with one of these:
   (-let* ((line (thing-at-point 'line t))
           ((_ head type what _params)
            (s-match
-            "^\s*#\\+\\(begin\\|call\\)\\(:\\|_[a-zA-Z0-9]+\\) *\\([A-Za-z0-9_-]+\\)?* *\\(.*\\)?$"
+            "^[[:space:]]*#\\+\\(begin\\|call\\)\\(:\\|_[[:alnum:]]+\\) *\\([[:alnum:]_-]+\\)?* *\\(.*\\)?$"
             line))
           (block-type (pcase (s-chop-prefix "_" type)
                         (":" (pcase head
@@ -107,21 +107,33 @@ Generally speaking, returned completions are annotated with one of these:
                                ("call" 'call)))
                         ((or "src" "SRC") 'src)
                         (_ 'special)))
-          (line-begin (line-beginning-position))
-          (looking-back-what (lambda (it) (looking-back (format it (or what "")) line-begin))) )
+          (line-begin (line-beginning-position)))
     (cond
      ((or (not line) (s-blank? type) (eq block-type 'special)) '())
      ((eq block-type 'call)
       (cond
-       ((funcall looking-back-what " %s") (corg--src-block-names))
-       ((or (s-blank? what)
-            (looking-back (format " %s(\\([a-zA-Z0-9]*\\|[^)]*,\s*[a-zA-Z0-9]*\\)" what) line-begin))
+       ;; #+call: |
+       ;; #+call: na|
+       ((looking-back (format " %s" (or what "")) line-begin)
+        (corg--src-block-names))
+       ;; #+call: name[...](|
+       ;; #+call: name(|
+       ((and (not (s-blank? what)) (looking-back (format " %s\\(\\[[^]]*\\]\\)?(\\([[:alnum:]_-]*\\|[^)]*,[[:space:]]*[[:alnum:]_-]*\\)" what) line-begin))
         (corg--src-block-args what))
        (t '())))
-     ((funcall looking-back-what " %s") (corg--block-types block-type))
-     ((looking-back ":\\([a-zA-Z0-9_-]+\\) +\"?" line-begin)
+     ;; #+begin_src na|
+     ;; #+begin: na|
+     ((looking-back (format " %s" (or what "")) line-begin)
+      (corg--block-types block-type))
+     ;; #+begin_src name :param |
+     ;; #+begin: name :param |
+     ((looking-back "\\(:[a-zA-Z0-9_-]+\\) +\"?" line-begin)
       (corg--parameter-types what block-type (match-string 1)))
-     ((not (s-blank? what)) (corg--parameters what block-type))
+     ;; #+begin_src name |
+     ;; #+begin: name |
+     ;; #+begin_src name :param "value" |
+     ((not (s-blank? what))
+      (corg--parameters what block-type))
      (t '()))))
 
 ;;;###autoload
@@ -333,7 +345,7 @@ These completions are annotated as \"native\"."
     (--map
      (-let (((arg val) (s-split "=" it)))
        (cons arg (list :ann (format "%s arg" src-block-name)
-                       :doc (format "default: %s" val))))
+                       :doc (format "⇒ Default: %s" val))))
      args)))
 
 ;;;; Utils
