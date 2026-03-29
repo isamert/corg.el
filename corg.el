@@ -5,7 +5,7 @@
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
 ;; URL: https://github.com/isamert/corg.el
 ;; Version: 0.0.2
-;; Package-Requires: ((emacs "27.1") (s "1.13.1") (dash "2.19.1"))
+;; Package-Requires: ((emacs "27.1") (s "1.13.1"))
 ;; Keywords: abbrev convenience completion matching
 
 ;; This file is not part of GNU Emacs.
@@ -35,16 +35,17 @@
 ;;; Code:
 
 (require 's)
-(require 'dash)
+(require 'seq)
 (require 'ob-core)
+(eval-when-compile (require 'subr-x))
 
 ;;;; Main
 
 (defun corg-completion-at-point ()
   "Provide a list of completion candidates with documentation.
 See `corg' for detailed documentation."
-  (-let ((bounds (bounds-of-thing-at-point 'filename))
-         (candidates (corg)))
+  (let ((bounds (bounds-of-thing-at-point 'filename))
+        (candidates (corg)))
     (when candidates
       (list
        (or (car bounds) (point))
@@ -96,20 +97,20 @@ Generally speaking, returned completions are annotated with one of these:
           variable similar to the common variable but it is
           specifically defined for the block which means this is
           a definitely implemented, trusted completion."
-  (-let* ((line (thing-at-point 'line t))
-          ((_ head type what _params)
-           (s-match
-            "^[[:space:]]*#\\+\\(begin\\|call\\)\\(:\\|_[[:alnum:]]+\\) *\\([[:alnum:]_-]+\\)?* *\\(.*\\)?$"
-            line))
-          (block-type (pcase (s-chop-prefix "_" type)
-                        (":" (pcase head
-                               ("begin" 'dblock)
-                               ("call" 'call)))
-                        ((or "src" "SRC") 'src)
-                        (_ 'special)))
-          (line-begin (line-beginning-position)))
+  (pcase-let* ((line (thing-at-point 'line t))
+               (`(,_ ,head ,type ,what ,_params)
+                (s-match
+                 "^[[:space:]]*#\\+\\(begin\\|call\\)\\(:\\|_[[:alnum:]]+\\) *\\([[:alnum:]_-]+\\)?* *\\(.*\\)?$"
+                 line))
+               (block-type (pcase (s-chop-prefix "_" type)
+                             (":" (pcase head
+                                    ("begin" 'dblock)
+                                    ("call" 'call)))
+                             ((or "src" "SRC") 'src)
+                             (_ 'special)))
+               (line-begin (line-beginning-position)))
     (cond
-     ((or (not line) (s-blank? type) (eq block-type 'special)) '())
+     ((or (not line) (not type) (string-blank-p type) (eq block-type 'special)) '())
      ((eq block-type 'call)
       (cond
        ;; #+call: |
@@ -118,7 +119,7 @@ Generally speaking, returned completions are annotated with one of these:
         (corg--src-block-names))
        ;; #+call: name[...](|
        ;; #+call: name(|
-       ((and (not (s-blank? what)) (looking-back (format " %s\\(\\[[^]]*\\]\\)?(\\([[:alnum:]_-]*\\|[^)]*,[[:space:]]*[[:alnum:]_-]*\\)" what) line-begin))
+       ((and what (not (string-blank-p what)) (looking-back (format " %s\\(\\[[^]]*\\]\\)?(\\([[:alnum:]_-]*\\|[^)]*,[[:space:]]*[[:alnum:]_-]*\\)" what) line-begin))
         (corg--src-block-args what))
        (t '())))
      ;; #+begin_src na|
@@ -132,7 +133,7 @@ Generally speaking, returned completions are annotated with one of these:
      ;; #+begin_src name |
      ;; #+begin: name |
      ;; #+begin_src name :param "value" |
-     ((not (s-blank? what))
+     ((and what (not (string-blank-p what)))
       (corg--parameters what block-type))
      (t '()))))
 
@@ -158,10 +159,11 @@ Return type is same as described in `corg'."
   (let* ((param-info
           (alist-get param (corg--parameters what block-type) nil nil #'equal))
          (param-type (plist-get param-info :type)))
-    (--map
-     (cons it (list :ann (concat "∈ " param)
-                    :doc (corg--doc-fn what block-type param-type)
-                    :type (plist-get param-info :type)))
+    (seq-map
+     (lambda (it)
+       (cons it (list :ann (concat "∈ " param)
+                      :doc (corg--doc-fn what block-type param-type)
+                      :type (plist-get param-info :type))))
      (corg--candify-type param-type))))
 
 (defun corg--parameters (what block-type)
@@ -191,12 +193,13 @@ etc. and for dynamic blocks it's something like `clocktable',
 `org-ql' etc.
 
 Return type is same as described in `corg'."
-  (--map
-   (let ((lang (s-chop-prefixes '("org-dblock-write:" "org-babel-execute:") (symbol-name it))))
-     (cons
-      lang
-      (list :ann (concat (symbol-name block-type) " type")
-            :doc (corg--doc-fn lang block-type))))
+  (seq-map
+   (lambda (it)
+     (let ((lang (s-chop-prefixes '("org-dblock-write:" "org-babel-execute:") (symbol-name it))))
+       (cons
+        lang
+        (list :ann (concat (symbol-name block-type) " type")
+              :doc (corg--doc-fn lang block-type)))))
    (corg--get-functions-starting-with
     (pcase block-type
       ('dblock "org-dblock-write:")
@@ -231,27 +234,28 @@ WHAT is block name (see `corg--parameters' for more details).
 BLOCK-TYPE is either \\='src or \\='dblock.
 
 These completions are annotated as \"source\"."
-  (-let* ((fn-name (corg--build-fn-name what block-type))
-          (fn (-as->
-               fn-name %
-               (intern %)
-               (corg--get-function-source %)
-               (s-lines %)
-               (s-join " " %)))
-          ((_ fntype) (s-match "( *\\(defun\\|cl-defun\\|lambda\\)" fn))
-          (args (pcase fntype
-                  ("lambda" (s-match "(lambda *(\\([a-zA-Z0-9]+\\) *\\([a-zA-Z0-9]+\\)?)" fn))
-                  (fn-type (s-match (format "(%s %s *(\\([a-zA-Z0-9]+\\) *\\([a-zA-Z0-9]+\\)?)" fn-type fn-name) fn))))
-          (params-name (pcase block-type
-                         ('src (nth 2 args))
-                         ('dblock (nth 1 args)))))
-    (--map
-     (cons
-      it
-      (list
-       :ann (concat what " parameter (source)")
-       :doc (corg--doc-fn what block-type "not available. This parameter found in the documentation.")
-       :type nil))
+  (pcase-let* ((fn-name (corg--build-fn-name what block-type))
+               (fn (thread-first
+                     fn-name
+                     intern
+                     corg--get-function-source
+                     (split-string "\n")
+                     (string-join " ")))
+               (`(,_ ,fntype) (s-match "( *\\(defun\\|cl-defun\\|lambda\\)" fn))
+               (args (pcase fntype
+                       ("lambda" (s-match "(lambda *(\\([a-zA-Z0-9]+\\) *\\([a-zA-Z0-9]+\\)?)" fn))
+                       (fn-type (s-match (format "(%s %s *(\\([a-zA-Z0-9]+\\) *\\([a-zA-Z0-9]+\\)?)" fn-type fn-name) fn))))
+               (params-name (pcase block-type
+                              ('src (nth 2 args))
+                              ('dblock (nth 1 args)))))
+    (seq-map
+     (lambda (it)
+       (cons
+        it
+        (list
+         :ann (concat what " parameter (source)")
+         :doc (corg--doc-fn what block-type "not available. This parameter found in the documentation.")
+         :type nil)))
      (corg--extract-parameters-from-source fn params-name))))
 
 (defun corg--get-parameter-completions-from-doc (what block-type)
@@ -268,20 +272,21 @@ WHAT is block name (see `corg--parameters' for more details).
 BLOCK-TYPE is either \\='src or \\='dblock.
 
 These completions are annotated as \"doc\"."
-  (-let* ((fn-name (corg--build-fn-name what block-type))
-          (doc (ignore-errors
-                 (documentation (intern fn-name)))))
-    (--map
-     (cons
-      it
-      (list
-       :ann (concat what " parameter (doc)")
-       :doc (corg--doc-fn what block-type "not available. This parameter found in source code. See below.")
-       :type nil))
+  (let* ((fn-name (corg--build-fn-name what block-type))
+         (doc (ignore-errors
+                (documentation (intern fn-name)))))
+    (seq-map
+     (lambda (it)
+       (cons
+        it
+        (list
+         :ann (concat what " parameter (doc)")
+         :doc (corg--doc-fn what block-type "not available. This parameter found in source code. See below.")
+         :type nil)))
      ;; I don't use an extensive regexp to reduce the amount of
      ;; false-positives. Parameter names are mostly lower-kebab-case
      ;; and that's what we need.
-     (-uniq (mapcar #'cadr (s-match-strings-all "[  \t\n\"`'‘’“”]+\\(:[a-z]+\\)[  \t\n\"`'‘’“”]+" doc))))))
+     (seq-uniq (mapcar #'cadr (s-match-strings-all "[  \t\n\"`'‘’“”]+\\(:[a-z]+\\)[  \t\n\"`'‘’“”]+" doc))))))
 
 (defun corg--parameters-from-var (what block-type)
   "Get parameter candidates from a special variable, if available.
@@ -306,7 +311,7 @@ These completions are annotated as \"native\"."
                ":" what))))))
 
 (defun corg--extract-parameters-from-source (source params-name)
-  (-uniq
+  (seq-uniq
    (mapcar
     #'cadr
     (append
@@ -316,55 +321,62 @@ These completions are annotated as \"native\"."
      (s-match-strings-all (format "(assq +\\([a-zA-Z0-9:_-]+\\) +%s)" params-name) source)))))
 
 (defun corg--type-completions-for-parameter (what block-type from parameter)
-  (--map
-   (cons
-    (concat ":" (symbol-name (car it)))
-    (list
-     :ann (concat what " parameter (" from ")")
-     :doc (corg--doc-fn what block-type (cdr it))
-     :type (cdr it)))
+  (seq-map
+   (lambda (it)
+     (cons
+      (concat ":" (symbol-name (car it)))
+      (list
+       :ann (concat what " parameter (" from ")")
+       :doc (corg--doc-fn what block-type (cdr it))
+       :type (cdr it))))
    parameter))
 
 ;;;; Call completion
 
 (defun corg--src-block-names ()
-  (--map
-   (cons it (list :ann "named block"
-                  :doc (corg--format-src-block-info (corg--get-src-block-info it))))
+  (seq-map
+   (lambda (it)
+     (cons it (list :ann "named block"
+                    :doc (corg--format-src-block-info (corg--get-src-block-info it)))))
    (append
     (when (bound-and-true-p org-babel-library-of-babel)
-      (--map (corg--stringify-type (car it)) org-babel-library-of-babel))
+      (seq-map (lambda (it) (corg--stringify-type (car it))) org-babel-library-of-babel))
     (org-babel-src-block-names))))
 
 (defun corg--src-block-args (src-block-name)
-  (let ((args (->>
-               (corg--get-src-block-info src-block-name)
-               (nth 2)
-               (--filter (and (consp it) (eq (car it) :var)))
-               (-map #'cdr))))
-    (--map
-     (-let (((arg val) (s-split "=" it)))
-       (cons arg (list :ann (format "%s arg" src-block-name)
-                       :doc (format "⇒ Default: %s" val))))
+  (let ((args (thread-last
+                (corg--get-src-block-info src-block-name)
+                (nth 2)
+                (seq-filter (lambda (it) (and (consp it) (eq (car it) :var))))
+                (mapcar #'cdr))))
+    (seq-map
+     (lambda (it)
+       (pcase-let* ((`(,arg ,val) (string-split it "=")))
+         (cons arg (list :ann (format "%s arg" src-block-name)
+                         :doc (format "⇒ Default: %s" val)))))
      args)))
 
 ;;;; Utils
 
+(defvar vc-suppress-confirm)
+
 (defun corg--get-function-source (function)
   "Return FUNCTION source in string form."
-  (-if-let ((buffer . pos) (let ((find-file-suppress-same-file-warnings t)
-                                 (vc-suppress-confirm t))
-                             (ignore-error error
-                               (delay-mode-hooks
-                                 (find-function-noselect function nil)))))
-      (save-current-buffer
-        (set-buffer buffer)
-        (buffer-substring-no-properties
-         pos
-         (progn (end-of-defun) (point))))
-    (let ((print-level nil)
-          (print-length nil))
-      (format "%S" (indirect-function function)))))
+  (pcase-let ((`(,buffer . ,pos)
+               (let ((find-file-suppress-same-file-warnings t)
+                     (vc-suppress-confirm t))
+                 (ignore-error error
+                   (delay-mode-hooks
+                     (find-function-noselect function nil))))))
+    (if (and buffer pos)
+        (save-current-buffer
+          (set-buffer buffer)
+          (buffer-substring-no-properties
+           pos
+           (progn (end-of-defun) (point))))
+      (let ((print-level nil)
+            (print-length nil))
+        (format "%S" (indirect-function function))))))
 
 (defun corg--get-functions-starting-with (prefix)
   "Get all function names starting with PREFIX."
@@ -389,12 +401,12 @@ These completions are annotated as \"native\"."
                  (commentary (if (search-forward ";;;" nil t)
                                  (buffer-substring start (match-beginning 0))
                                "")))
-            (->>
-             commentary
-             s-trim
-             s-lines
-             (--map (s-trim (s-chop-prefix ";;" it)))
-             (s-join "\n"))))))))
+            (thread-last
+              commentary
+              s-trim
+              s-lines
+              (seq-map (lambda (it) (s-trim (s-chop-prefix ";;" it))))
+              (s-join "\n"))))))))
 
 (defun corg--build-fn-name (what block-type)
   (concat
@@ -405,7 +417,7 @@ These completions are annotated as \"native\"."
 
 (defun corg--candify-type (type)
   (cond
-   ((listp type) (-non-nil (mapcar #'corg--candify-type-1 (car type))))
+   ((listp type) (seq-filter #'identity (mapcar #'corg--candify-type-1 (car type))))
    (t (when-let ((result (corg--candify-type-1 type)))
         result))))
 
@@ -417,7 +429,7 @@ These completions are annotated as \"native\"."
 
 (defun corg--stringify-type (type)
   (cond
-   ((listp type) (s-join "|" (mapcar #'corg--stringify-type (car type))))
+   ((listp type) (string-join (mapcar #'corg--stringify-type (car type)) "|"))
    ((symbolp type) (symbol-name type))
    (t (format "%s" type))))
 
@@ -450,14 +462,16 @@ These completions are annotated as \"native\"."
 
 (defun corg--format-src-block-info (info)
   "Format org-babel source block INFO in a readable way."
-  (-let* (((lang body params _ name) info)
-          (args (->> params
-                   (--filter (and (consp it) (eq (car it) :var)))
-                   (--map (cdr it))
-                   (s-join ", ")))
-          (params-str (->> params
-                         (--map (format "%s %s" (car it) (cdr it)))
-                         (s-join " "))))
+  (pcase-let* ((`(,lang ,body ,params ,_ ,name) info)
+               (args (string-join
+                      (thread-last
+                        params
+                        (seq-filter (lambda (it) (and (consp it) (eq (car it) :var))))
+                        (mapcar #'cdr))
+                      ", "))
+               (params-str (string-join
+                            (seq-map (lambda (it) (format "%s %s" (car it) (cdr it))) params)
+                            " ")))
     (concat
      (propertize (or name "unnamed") 'face 'font-lock-function-name-face)
      (propertize (format "(%s)" args) 'face 'font-lock-variable-name-face)
