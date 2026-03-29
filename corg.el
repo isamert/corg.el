@@ -37,7 +37,17 @@
 (require 's)
 (require 'seq)
 (require 'ob-core)
+(require 'org-element)
+(require 'org-element-ast)
 (eval-when-compile (require 'subr-x))
+
+;;;; Variables
+
+(defvar corg--call-name-char-class
+  "[[:alnum:]_-]")
+
+(defvar corg--call-params-regex
+  "\\(\\[[^]]*\\]\\)?(\\([[:alnum:]_-]*\\|[^)]*,[[:space:]]*[[:alnum:]_-]*\\)")
 
 ;;;; Main
 
@@ -108,18 +118,33 @@ Generally speaking, returned completions are annotated with one of these:
                                     ("call" 'call)))
                              ((or "src" "SRC") 'src)
                              (_ 'special)))
-               (line-begin (line-beginning-position)))
+               (line-begin (line-beginning-position))
+               (in-src-block? (unless type
+                                (org-element-type-p (org-element-context) '(src-block)))))
     (cond
+     (in-src-block?
+      (cond
+       ;; <<|
+       ;; <<na|
+       ((looking-back (format "%s\\(%s*\\)" org-babel-noweb-wrap-start corg--call-name-char-class) line-begin)
+        (corg--src-block-name-completions))
+       ;; <<name[...](|
+       ;; <<name(|
+       ((looking-back
+         (format "%s\\(%s+\\)%s" org-babel-noweb-wrap-start corg--call-name-char-class corg--call-params-regex)
+         line-begin)
+        (corg--src-block-args (match-string-no-properties 1)))))
      ((or (not line) (not type) (string-blank-p type) (eq block-type 'special)) '())
      ((eq block-type 'call)
       (cond
        ;; #+call: |
        ;; #+call: na|
        ((looking-back (format " %s" (or what "")) line-begin)
-        (corg--src-block-names))
+        (corg--src-block-name-completions))
        ;; #+call: name[...](|
        ;; #+call: name(|
-       ((and what (not (string-blank-p what)) (looking-back (format " %s\\(\\[[^]]*\\]\\)?(\\([[:alnum:]_-]*\\|[^)]*,[[:space:]]*[[:alnum:]_-]*\\)" what) line-begin))
+       ((and what (not (string-blank-p what))
+             (looking-back (format " %s%s" what corg--call-params-regex) line-begin))
         (corg--src-block-args what))
        (t '())))
      ;; #+begin_src na|
@@ -333,15 +358,18 @@ These completions are annotated as \"native\"."
 
 ;;;; Call completion
 
-(defun corg--src-block-names ()
+(defun corg--src-block-name-completions ()
   (seq-map
    (lambda (it)
      (cons it (list :ann "named block"
                     :doc (corg--format-src-block-info (corg--get-src-block-info it)))))
-   (append
-    (when (bound-and-true-p org-babel-library-of-babel)
-      (seq-map (lambda (it) (corg--stringify-type (car it))) org-babel-library-of-babel))
-    (org-babel-src-block-names))))
+   (corg--src-block-names)))
+
+(defun corg--src-block-names ()
+  (append
+   (when (bound-and-true-p org-babel-library-of-babel)
+     (seq-map (lambda (it) (corg--stringify-type (car it))) org-babel-library-of-babel))
+   (org-babel-src-block-names)))
 
 (defun corg--src-block-args (src-block-name)
   (let ((args (thread-last
