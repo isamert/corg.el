@@ -5,7 +5,7 @@
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
 ;; URL: https://github.com/isamert/corg.el
 ;; Version: 0.0.2
-;; Package-Requires: ((emacs "27.1") (s "1.13.1"))
+;; Package-Requires: ((emacs "27.1") (s "1.13.1") (compat "30"))
 ;; Keywords: abbrev convenience completion matching
 
 ;; This file is not part of GNU Emacs.
@@ -36,9 +36,9 @@
 
 (require 's)
 (require 'seq)
+(require 'org)
 (require 'ob-core)
-(require 'org-element)
-(require 'org-element-ast)
+(require 'compat)
 (eval-when-compile (require 'subr-x))
 
 ;;;; Variables
@@ -119,8 +119,7 @@ Generally speaking, returned completions are annotated with one of these:
                              ((or "src" "SRC") 'src)
                              (_ 'special)))
                (line-begin (line-beginning-position))
-               (in-src-block? (unless type
-                                (org-element-type-p (org-element-context) '(src-block)))))
+               (in-src-block? (unless type (org-in-src-block-p t))))
     (cond
      (in-src-block?
       (cond
