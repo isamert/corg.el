@@ -1,11 +1,11 @@
 #+TITLE: corg.el
 
 *corg.el* 🍾 is an Emacs package that provides completion-at-point for
-Org-mode source block headers, dynamic block headers and ~#+call~
-syntax. /corg/ auto-completes programming language names, their
-parameters, and possible parameter values for source blocks. For
-dynamic blocks, it completes block names, their parameters, and
-possible parameter values.
+Org-mode source block headers, dynamic block headers, ~#+call~ syntax,
+noweb references inside src blocks. /corg/ auto-completes programming
+language names, their parameters, and possible parameter values for
+source blocks. For dynamic blocks, it completes block names, their
+parameters, and possible parameter values.
 
 #+html: <img src="https://github.com/user-attachments/assets/25086366-3570-4638-a3f5-98ae8f9b1819">
 
