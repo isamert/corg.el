@@ -392,7 +392,7 @@ These completions are annotated as \"native\"."
   "Get commentary of given PACKAGE."
   (let ((find-file-suppress-same-file-warnings t)
         (vc-suppress-confirm t))
-    (when-let ((pkg-file (s-chop-suffix "c" (locate-library package))))
+    (when-let* ((pkg-file (s-chop-suffix "c" (locate-library package))))
       (with-temp-buffer
         (insert-file-contents pkg-file)
         (goto-char (point-min))
@@ -418,7 +418,7 @@ These completions are annotated as \"native\"."
 (defun corg--candify-type (type)
   (cond
    ((listp type) (seq-filter #'identity (mapcar #'corg--candify-type-1 (car type))))
-   (t (when-let ((result (corg--candify-type-1 type)))
+   (t (when-let* ((result (corg--candify-type-1 type)))
         result))))
 
 (defun corg--candify-type-1 (type)
@@ -444,7 +444,7 @@ These completions are annotated as \"native\"."
       (concat
        (when type
          (concat "Type is " (corg--stringify-type type) "\n\n---\n\n"))
-       (when-let ((commentary (corg--get-package-commentary (concat "ob-" lang))))
+       (when-let* ((commentary (corg--get-package-commentary (concat "ob-" lang))))
          (concat commentary "\n\n---\n\n"))
        "⇒ "
        fn-name
@@ -456,7 +456,7 @@ These completions are annotated as \"native\"."
   (or (and (bound-and-true-p org-babel-library-of-babel)
            (alist-get (intern block-name) org-babel-library-of-babel))
       (org-with-point-at 1
-        (when-let ((pt (org-babel-find-named-block block-name)))
+        (when-let* ((pt (org-babel-find-named-block block-name)))
           (goto-char pt)
           (org-babel-get-src-block-info t)))))
 
