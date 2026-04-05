@@ -319,7 +319,7 @@ These completions are annotated as \"doc\"."
      ;; I don't use an extensive regexp to reduce the amount of
      ;; false-positives. Parameter names are mostly lower-kebab-case
      ;; and that's what we need.
-     (seq-uniq (mapcar #'cadr (s-match-strings-all "[  \t\n\"`'‘’“”]+\\(:[a-z]+\\)[  \t\n\"`'‘’“”]+" doc))))))
+     (seq-uniq (mapcar #'cadr (s-match-strings-all "[  \t\n\"`'‘’“”]+\\(:[a-z-]+\\)[  \t\n\"`'‘’“”]+" doc))))))
 
 (defun corg--parameters-from-var (what block-type)
   "Get parameter candidates from a special variable, if available.
