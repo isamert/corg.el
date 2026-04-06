@@ -1,5 +1,8 @@
 #+TITLE: corg.el
 
+[[https://stable.melpa.org/#/corg][file:https://stable.melpa.org/packages/corg-badge.svg]]
+[[https://melpa.org/#/corg][file:https://melpa.org/packages/corg-badge.svg]]
+
 *corg.el* 🍾 is an Emacs package that provides completion-at-point for
 Org-mode source block headers, dynamic block headers, ~#+call~ syntax,
 noweb references inside src blocks. /corg/ auto-completes programming
@@ -11,6 +14,19 @@ parameters, and possible parameter values.
 
 * Installation
 
+** MELPA
+
+/corg/ is available through [[https://melpa.org/#/corg][MELPA]]. If you have it set up already, just
+do ~M-x package-install corg~ and you are good to go. Otherwise please
+see [[https://melpa.org/#/getting-started][MELPA getting started]] page to learn how you can install packages
+through MELPA or see the following installation options.
+
+#+begin_src emacs-lisp
+(use-package corg)
+#+end_src
+
+** Manual installation
+
 1. Install [[https://github.com/magnars/s.el][s.el]] and [[https://github.com/magnars/dash.el][dash.el]] dependencies.
 1. Download corg.el to your Emacs load path.
 2. Add the following to your Emacs configuration file:
@@ -19,7 +35,9 @@ parameters, and possible parameter values.
 (require 'corg)
 #+end_src
 
-Or you can use ~use-package~ with one of [[https://github.com/radian-software/straight.el][straight]], [[https://github.com/slotThe/vc-use-package][vc]], [[https://github.com/quelpa/quelpa][quelpa]], [[https://github.com/progfolio/elpaca][elpaca]] etc.
+** Other package managers
+
+You can also use ~use-package~ with one of [[https://github.com/radian-software/straight.el][straight]], [[https://github.com/slotThe/vc-use-package][vc]], [[https://github.com/quelpa/quelpa][quelpa]], [[https://github.com/progfolio/elpaca][elpaca]] etc.
 
 #+begin_src emacs-lisp
 ;; Using straight:
@@ -107,3 +125,6 @@ There is also [[https://github.com/xenodium/org-block-capf][org-block-capf]] but
 it mostly works as a snippet manager for Org blocks rather than a
 completion tool. I guess /corg/ and /org-block-capf/ can be used together
 to complement each other but I haven't tried it yet.
+
+Similarly, you can also use ~org-insert-structure-template~ in
+conjunction with /corg/ which comes with Org by default.

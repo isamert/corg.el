@@ -4,7 +4,7 @@
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
 ;; URL: https://github.com/isamert/corg.el
-;; Version: 0.2.0
+;; Version: 0.2.1
 ;; Package-Requires: ((emacs "27.1") (s "1.13.1") (compat "30"))
 ;; Keywords: abbrev convenience completion matching
 
